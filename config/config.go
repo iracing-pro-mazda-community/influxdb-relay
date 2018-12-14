@@ -66,6 +66,7 @@ type HTTPOutputConfig struct {
 	SkipTLSVerification bool `toml:"skip-tls-verification"`
 }
 
+//HTTPEndpointConfig details the remote endpoints to use
 type HTTPEndpointConfig struct {
 	// Must be the standard write endpoint in influxdb.
 	Write string `toml:"write"`
