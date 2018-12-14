@@ -217,7 +217,7 @@ func jsonResponse(w http.ResponseWriter, r response) {
 }
 
 type poster interface {
-	post([]byte, string, string) (*responseData, error)
+	post([]byte, string, string, string) (*responseData, error)
 	getStats() map[string]string
 }
 
@@ -250,8 +250,8 @@ func (s *simplePoster) getStats() map[string]string {
 	return v
 }
 
-func (s *simplePoster) post(buf []byte, query string, auth string) (*responseData, error) {
-	req, err := http.NewRequest("POST", s.location, bytes.NewReader(buf))
+func (s *simplePoster) post(buf []byte, query string, auth string, endpoint string) (*responseData, error) {
+	req, err := http.NewRequest("POST", s.location+endpoint, bytes.NewReader(buf))
 	if err != nil {
 		return nil, err
 	}
@@ -287,6 +287,8 @@ type httpBackend struct {
 	name      string
 	inputType config.Input
 	admin     string
+	endpoints config.HTTPEndpointConfig
+	location  string
 }
 
 func newHTTPBackend(cfg *config.HTTPOutputConfig) (*httpBackend, error) {
@@ -329,8 +331,8 @@ func newHTTPBackend(cfg *config.HTTPOutputConfig) (*httpBackend, error) {
 	return &httpBackend{
 		poster:    p,
 		name:      cfg.Name,
-		inputType: cfg.InputType,
-		admin:     cfg.Admin,
+		endpoints: cfg.Endpoints,
+		location:  cfg.Location,
 	}, nil
 }
 

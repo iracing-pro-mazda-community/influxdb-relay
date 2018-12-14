@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/vente-privee/influxdb-relay/config"
-	"github.com/vente-privee/influxdb-relay/relayservice"
+	"git.vpgrp.io/noc/influxdb/influxdb-relay/config"
+	"git.vpgrp.io/noc/influxdb/influxdb-relay/relayservice"
 )
 
 const (

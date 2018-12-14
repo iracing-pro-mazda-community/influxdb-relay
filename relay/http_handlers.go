@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/vente-privee/influxdb-relay/config"
 )
 
 func (h *HTTP) handleStatus(w http.ResponseWriter, r *http.Request, _ time.Time) {
@@ -68,10 +67,6 @@ func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time)
 	for _, b := range h.backends {
 		b := b
 
-		if b.admin == "" {
-			wg.Done()
-			continue
-		}
 
 		validEndpoints++
 
@@ -80,8 +75,11 @@ func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time)
 
 			var healthCheck = health{name: b.name, err: nil}
 
-			req, err := http.NewRequest("GET", b.admin+"/ping", nil)
+			req, err := http.NewRequest("GET", b.location + b.endpoints.Ping, nil)
 			if err != nil {
+				if h.log {
+					h.logger.Println(err)
+				}
 				healthCheck.err = errorCreateRequest
 				responses <- healthCheck
 				return
@@ -170,7 +168,7 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 			// Create new request
 			// Update location according to backend
 			// Forward body
-			req, err := http.NewRequest("POST", b.admin+"/query", r.Body)
+			req, err := http.NewRequest("POST", b.location + b.endpoints.Query, r.Body)
 			if err != nil {
 				log.Printf("Problem posting to relay %q backend %q: could not prepare request: %v", h.Name(), b.name, err)
 				responses <- &http.Response{}
@@ -280,14 +278,10 @@ func (h *HTTP) handleStandard(w http.ResponseWriter, r *http.Request, start time
 
 	for _, b := range h.backends {
 		b := b
-		if b.inputType != config.TypeInfluxdb {
-			wg.Done()
-			continue
-		}
 
 		go func() {
 			defer wg.Done()
-			resp, err := b.post(outBytes, query, authHeader)
+			resp, err := b.post(outBytes, query, authHeader, b.endpoints.Write)
 			if err != nil {
 				log.Printf("Problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
 				if h.log {
@@ -350,6 +344,7 @@ func (h *HTTP) handleStandard(w http.ResponseWriter, r *http.Request, start time
 }
 
 func (h *HTTP) handleProm(w http.ResponseWriter, r *http.Request, _ time.Time) {
+	fmt.Println("in handleProm")
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		if r.Method == http.MethodOptions {
@@ -374,14 +369,11 @@ func (h *HTTP) handleProm(w http.ResponseWriter, r *http.Request, _ time.Time) {
 
 	for _, b := range h.backends {
 		b := b
-		if b.inputType != config.TypePrometheus {
-			wg.Done()
-			continue
-		}
 
 		go func() {
 			defer wg.Done()
-			resp, err := b.post(outBytes, r.URL.RawQuery, authHeader)
+			fmt.Println("Posting to ", b.location + b.endpoints.PromWrite)
+			resp, err := b.post(outBytes, r.URL.RawQuery, authHeader, b.endpoints.PromWrite)
 			if err != nil {
 				log.Printf("Problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
 
@@ -423,6 +415,7 @@ func (h *HTTP) handleProm(w http.ResponseWriter, r *http.Request, _ time.Time) {
 			return
 
 		case 4:
+			fmt.Println("404")
 			// User error
 			resp.Write(w)
 			return

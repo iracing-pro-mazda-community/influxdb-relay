@@ -1,8 +1,7 @@
 package config
 
 import (
-	"errors"
-	"net/url"
+	"fmt"
 	"os"
 
 	"github.com/naoina/toml"
@@ -42,12 +41,11 @@ type HTTPOutputConfig struct {
 	// Name of the backend server
 	Name string `toml:"name"`
 
-	// Location should be set to the URL of the backend server's write endpoint
+	// Location should be set to the hostname for the influxdb endpoint (for example https://influxdb.com/)
 	Location string `toml:"location"`
 
-	// Query should be set to the URL of the backend server's query endpoint
-	// This is used for database creation through relay
-	Admin string `toml:"admin"`
+	// Endpoints should contain the path to the different influxdb endpoints used
+	Endpoints HTTPEndpointConfig `toml:"endpoints"`
 
 	// Timeout sets a per-backend timeout for write requests (default: 10s)
 	// The format used is the same seen in time.ParseDuration
@@ -66,11 +64,17 @@ type HTTPOutputConfig struct {
 	// Skip TLS verification in order to use self signed certificate
 	// WARNING: It's insecure, use it only for developing and don't use in production
 	SkipTLSVerification bool `toml:"skip-tls-verification"`
+}
 
-	// Where does the data come from ?
-	// This allows us to identify the data in the source code
-	// in order to apply a type-based treatment to it
-	InputType Input `toml:"type"`
+type HTTPEndpointConfig struct {
+	// Must be the standard write endpoint in influxdb.
+	Write string `toml:"write"`
+	// Must be the prometheus specific influxdb endpoint
+	PromWrite string `toml:"write_prom"`
+	// Must be the ping endpoint
+	Ping string `toml:"ping"`
+	// Must be the query influxdb endpoint
+	Query string `toml:"query"`
 }
 
 // UDPConfig represents a UDP relay
@@ -103,6 +107,23 @@ type UDPOutputConfig struct {
 	MTU int `toml:"mtu"`
 }
 
+func checkDoubleSlash(endpoint HTTPEndpointConfig) HTTPEndpointConfig {
+	if endpoint.PromWrite[0] == '/' {
+		endpoint.PromWrite = endpoint.PromWrite[1:]
+	}
+	if endpoint.Ping[0] == '/' {
+		endpoint.Ping = endpoint.Ping[1:]
+	}
+	if endpoint.Query[0] == '/' {
+		endpoint.Query = endpoint.Query[1:]
+	}
+	if endpoint.Write[0] == '/' {
+		endpoint.Write = endpoint.Write[1:]
+	}
+	fmt.Println(endpoint)
+	return endpoint
+}
+
 // LoadConfigFile parses the specified file into a Config object
 func LoadConfigFile(filename string) (Config, error) {
 	var cfg Config
@@ -113,20 +134,17 @@ func LoadConfigFile(filename string) (Config, error) {
 	}
 	defer f.Close()
 
-	if err = toml.NewDecoder(f).Decode(&cfg); err == nil {
-		for index, relay := range cfg.HTTPRelays {
-			for indexB, backend := range relay.Outputs {
-				if backend.InputType == "" {
-					cfg.HTTPRelays[index].Outputs[indexB].InputType = TypeInfluxdb
-				}
-
-				_, err = url.Parse(backend.Admin)
-				if err != nil {
-					return cfg, errors.New("invalid query parameter for backend " + backend.Name)
+	err = toml.NewDecoder(f).Decode(&cfg)
+	if err == nil {
+		for i, r := range cfg.HTTPRelays {
+			for j, b := range r.Outputs {
+				fmt.Println("lastchar", b.Location[len(b.Location) - 1])
+				if b.Location[len(b.Location) - 1] == '/' {
+					cfg.HTTPRelays[i].Outputs[j].Endpoints = checkDoubleSlash(b.Endpoints)
 				}
 			}
 		}
 	}
-
+	fmt.Printf("%+v\n", cfg)
 	return cfg, err
 }
