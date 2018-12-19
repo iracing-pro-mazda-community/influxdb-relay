@@ -68,7 +68,6 @@ func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time)
 	for _, b := range h.backends {
 		b := b
 
-
 		validEndpoints++
 
 		go func() {
@@ -89,12 +88,11 @@ func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time)
 				healthCheck.err = err
 				responses <- healthCheck
 				return
-			} else {
-				if res.StatusCode/100 != 2 {
-					healthCheck.err = errors.New("Unexpected error code " + string(res.StatusCode))
-				}
-				healthCheck.duration = time.Since(start)
 			}
+			if res.StatusCode/100 != 2 {
+				healthCheck.err = errors.New("Unexpected error code " + string(res.StatusCode))
+			}
+			healthCheck.duration = time.Since(start)
 			responses <- healthCheck
 			return
 		}()
@@ -168,7 +166,7 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 			// Create new request
 			// Update location according to backend
 			// Forward body
-			req, err := http.NewRequest("POST", b.location + b.endpoints.Query, r.Body)
+			req, err := http.NewRequest("POST", b.location+b.endpoints.Query, r.Body)
 			if err != nil {
 				log.Printf("Problem posting to relay %q backend %q: could not prepare request: %v", h.Name(), b.name, err)
 				responses <- &http.Response{}
