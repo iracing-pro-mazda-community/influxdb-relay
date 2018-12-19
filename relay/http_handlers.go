@@ -281,7 +281,6 @@ func (h *HTTP) handleStandard(w http.ResponseWriter, r *http.Request, start time
 			defer wg.Done()
 			resp, err := b.post(outBytes, query, authHeader, b.endpoints.Write)
 			if err != nil {
-				sort.Sort()
 				log.Printf("Problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
 				if h.log {
 					h.logger.Printf("Content: %s", bodyBuf.String())
