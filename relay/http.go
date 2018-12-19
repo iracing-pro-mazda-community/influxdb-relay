@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/vente-privee/influxdb-relay/config"
+	"git.vpgrp.io/noc/influxdb/influxdb-relay/config"
 )
 
 // HTTP is a relay for HTTP influxdb writes

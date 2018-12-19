@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"github.com/stretchr/testify/assert"
-	"github.com/vente-privee/influxdb-relay/config"
+	"git.vpgrp.io/noc/influxdb/influxdb-relay/config"
 	"io/ioutil"
 	"log"
 	"net/http"

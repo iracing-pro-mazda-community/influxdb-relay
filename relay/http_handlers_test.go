@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vente-privee/influxdb-relay/config"
+	"git.vpgrp.io/noc/influxdb/influxdb-relay/config"
 )
 
 var (
@@ -413,14 +414,13 @@ func TestHandlePromBackendUpError400(t *testing.T) {
 	h.handleProm(w, r, ti)
 	WriterTest(t, BackendUpPromError400Writer, w)
 	h.backends = h.backends[:0]
-	t.Errorf()
 }
 
-/*
+
 func TestHandlePromBackendUpError500(t *testing.T) {
 	defer resetWriter()
 	h := createHTTP(t, emptyConfig, false)
-	cfgOutProm := config.HTTPOutputConfig{Name: "test_prometheus", InputType: "prometheus", Location: Error500.URL + "/prom"}
+	cfgOutProm := config.HTTPOutputConfig{Name: "test_prometheus", Location: Error500.URL + "/prom"}
 	promBody.buf = bytes.NewBuffer([]byte{})
 	r, err := http.NewRequest(http.MethodPost, Error500.URL, promBody)
 	if err != nil {
@@ -466,8 +466,8 @@ func TestHandleInfluxWrongBackend(t *testing.T) {
 func TestHandleInfluxBackendDown(t *testing.T) {
 	defer resetWriter()
 	h := createHTTP(t, emptyConfig, false)
-	cfgOutProm := config.HTTPOutputConfig{Name: "test_prometheus", InputType: "prometheus"}
-	cfgOutInflux := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb"}
+	cfgOutProm := config.HTTPOutputConfig{Name: "test_prometheus"}
+	cfgOutInflux := config.HTTPOutputConfig{Name: "test_influx"}
 	influxBody.buf = bytes.NewBuffer([]byte{})
 	r, err := http.NewRequest(http.MethodOptions, "influxdb", influxBody)
 	if err != nil {
@@ -490,7 +490,7 @@ func TestHandleInfluxBackendDown(t *testing.T) {
 func TestHandleInfluxBackendUp(t *testing.T) {
 	defer resetWriter()
 	h := createHTTP(t, emptyConfig, false)
-	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: ValidServer.URL + "/influxdb"}
+	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", Location: ValidServer.URL + "/influxdb"}
 	influxBody.buf = bytes.NewBuffer([]byte{})
 	r, err := http.NewRequest(http.MethodPost, ValidServer.URL, influxBody)
 	if err != nil {
@@ -507,7 +507,7 @@ func TestHandleInfluxBackendUpError400(t *testing.T) {
 	defer resetWriter()
 	h := createHTTP(t, emptyConfig, false)
 
-	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: Error400.URL + "/influxdb"}
+	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", Location: Error400.URL + "/influxdb"}
 	influxBody.buf = bytes.NewBuffer([]byte{})
 	r, err := http.NewRequest(http.MethodPost, Error400.URL, influxBody)
 	if err != nil {
@@ -524,7 +524,7 @@ func TestHandleInfluxBackendUpError500(t *testing.T) {
 	defer resetWriter()
 	h := createHTTP(t, emptyConfig, false)
 
-	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: Error500.URL + "/influxdb"}
+	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", Location: Error500.URL + "/influxdb"}
 	influxBody.buf = bytes.NewBuffer([]byte{})
 	r, err := http.NewRequest(http.MethodPost, Error500.URL, influxBody)
 	if err != nil {
@@ -546,7 +546,7 @@ func TestHandleInfluxFailParsePoint(t *testing.T) {
 	defer resetWriter()
 	h := createHTTP(t, emptyConfig, false)
 
-	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: ValidServer.URL + "/influxdb"}
+	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", Location: ValidServer.URL + "/influxdb"}
 	influxBody.buf = bytes.NewBuffer([]byte("Some Bug"))
 	r, err := http.NewRequest(http.MethodPost, ValidServer.URL, influxBody)
 	if err != nil {
@@ -563,7 +563,7 @@ func TestHandleInfluxParsePoint(t *testing.T) {
 	defer resetWriter()
 	h := createHTTP(t, emptyConfig, false)
 
-	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: ValidServer.URL + "/influxdb"}
+	cfgOutProm := config.HTTPOutputConfig{Name: "test_influx", Location: ValidServer.URL + "/influxdb"}
 	influxBody.buf = bytes.NewBuffer([]byte("cpu_load_short,host=server01,region=us-west value=0.64 1434055562000000000"))
 	r, err := http.NewRequest(http.MethodPost, ValidServer.URL, influxBody)
 	if err != nil {
@@ -586,7 +586,7 @@ func TestAdmin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: ValidServer.URL + "/influxdb", Admin: ValidServer.URL}
+	cfg := config.HTTPOutputConfig{Name: "test_influx", Location: ValidServer.URL + "/influxdb"}
 
 	b, _ := newHTTPBackend(&cfg)
 	h.backends = append(h.backends, b)
@@ -618,7 +618,7 @@ func TestAdminNoAdminBackends(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: ValidServer.URL + "/influxdb", Admin: ""}
+	cfg := config.HTTPOutputConfig{Name: "test_influx", Location: ValidServer.URL + "/influxdb"}
 
 	b, _ := newHTTPBackend(&cfg)
 	h.backends = append(h.backends, b)
@@ -649,7 +649,7 @@ func TestAdminBadURL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: ValidServer.URL + "/influxdb", Admin: "127.0.0.1:8888"}
+	cfg := config.HTTPOutputConfig{Name: "test_influx", Location: ValidServer.URL + "/influxdb"}
 
 	b, _ := newHTTPBackend(&cfg)
 	h.backends = append(h.backends, b)
@@ -667,7 +667,7 @@ func TestAdminUnreachableURL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: ValidServer.URL + "/influxdb", Admin: "http://invalid/"}
+	cfg := config.HTTPOutputConfig{Name: "test_influx", Location: ValidServer.URL + "/influxdb",}
 
 	b, _ := newHTTPBackend(&cfg)
 	h.backends = append(h.backends, b)
@@ -685,7 +685,7 @@ func TestAdminErrorServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: Error500.URL + "/influxdb", Admin: Error500.URL}
+	cfg := config.HTTPOutputConfig{Name: "test_influx", Location: Error500.URL + "/influxdb"}
 
 	b, _ := newHTTPBackend(&cfg)
 	h.backends = append(h.backends, b)
@@ -704,7 +704,7 @@ func TestAdminErrorClient(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := config.HTTPOutputConfig{Name: "test_influx", InputType: "influxdb", Location: Error400.URL + "/influxdb", Admin: Error400.URL}
+	cfg := config.HTTPOutputConfig{Name: "test_influx", Location: Error400.URL + "/influxdb"}
 
 	b, _ := newHTTPBackend(&cfg)
 	h.backends = append(h.backends, b)
@@ -714,4 +714,4 @@ func TestAdminErrorClient(t *testing.T) {
 	buf2, _ := ioutil.ReadAll(AdminWriterClientError.writeBuf)
 	assert.Equal(t, buf[:43], buf2[:43])
 }
-*/
+

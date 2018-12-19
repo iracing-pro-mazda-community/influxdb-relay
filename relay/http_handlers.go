@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"sync"
 	"time"
 
@@ -61,7 +60,6 @@ var (
 func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time) {
 	var responses = make(chan health, len(h.backends))
 	var wg sync.WaitGroup
-	var client = http.Client{}
 	var validEndpoints = 0
 	wg.Add(len(h.backends))
 
