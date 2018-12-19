@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -75,20 +76,19 @@ func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time)
 
 			var healthCheck = health{name: b.name, err: nil}
 
-			req, err := http.NewRequest("GET", b.location + b.endpoints.Ping, nil)
+			client := http.Client{
+				Timeout: h.healthTimeout,
+			}
+			start := time.Now()
+			res, err := client.Get(b.location + b.endpoints.Ping)
+
 			if err != nil {
 				if h.log {
 					h.logger.Println(err)
 				}
-				healthCheck.err = errorCreateRequest
+				healthCheck.err = err
 				responses <- healthCheck
 				return
-			}
-
-			start := time.Now()
-			res, err := client.Do(req)
-			if err != nil {
-				healthCheck.err = err
 			} else {
 				if res.StatusCode/100 != 2 {
 					healthCheck.err = errors.New("Unexpected error code " + string(res.StatusCode))
@@ -283,6 +283,7 @@ func (h *HTTP) handleStandard(w http.ResponseWriter, r *http.Request, start time
 			defer wg.Done()
 			resp, err := b.post(outBytes, query, authHeader, b.endpoints.Write)
 			if err != nil {
+				sort.Sort()
 				log.Printf("Problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
 				if h.log {
 					h.logger.Printf("Content: %s", bodyBuf.String())
@@ -344,7 +345,6 @@ func (h *HTTP) handleStandard(w http.ResponseWriter, r *http.Request, start time
 }
 
 func (h *HTTP) handleProm(w http.ResponseWriter, r *http.Request, _ time.Time) {
-	fmt.Println("in handleProm")
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		if r.Method == http.MethodOptions {
@@ -372,7 +372,6 @@ func (h *HTTP) handleProm(w http.ResponseWriter, r *http.Request, _ time.Time) {
 
 		go func() {
 			defer wg.Done()
-			fmt.Println("Posting to ", b.location + b.endpoints.PromWrite)
 			resp, err := b.post(outBytes, r.URL.RawQuery, authHeader, b.endpoints.PromWrite)
 			if err != nil {
 				log.Printf("Problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
@@ -415,7 +414,6 @@ func (h *HTTP) handleProm(w http.ResponseWriter, r *http.Request, _ time.Time) {
 			return
 
 		case 4:
-			fmt.Println("404")
 			// User error
 			resp.Write(w)
 			return

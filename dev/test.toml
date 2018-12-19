@@ -1,7 +1,17 @@
 [[http]]
 name = "test-config"
 bind-addr = "0.0.0.0:9096"
-output = [
-    { name="from_influx", location = "http://influxdb:8086/write", admin = "http://influxdb:8086" },
-    { name="from_prometheus", location = "http://influxdb:8086/api/v1/prom/write", type="prometheus", buffer-size-mb = 100, max-batch-kb = 1000, max-delay-interval = "5s" }
-]
+health-timeout-ms = 10000
+
+[[http.output]]
+name="influxdb01"
+location="http://influxdb:8086/"
+endpoints = {write="/write", write_prom="/api/v1/prom/write", ping="/ping", query="/query"}
+
+[[http.output]]
+name="influxdb02"
+location="http://influxdb:8086/"
+endpoints = {write="/write", write_prom="/api/v1/prom/write", ping="/ping", query="/query"}
+buffer-size-mb=100
+max-batch-kb=1000
+max-delay-interval="5s"

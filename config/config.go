@@ -34,6 +34,8 @@ type HTTPConfig struct {
 
 	// Outputs is a list of backed servers where writes will be forwarded
 	Outputs []HTTPOutputConfig `toml:"output"`
+
+	HealthTimeout int64 `toml:"health-timeout-ms"`
 }
 
 // HTTPOutputConfig represents the specification of an HTTP backend target

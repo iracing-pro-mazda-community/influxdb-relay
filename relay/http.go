@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/vente-privee/influxdb-relay/config"
+	"git.vpgrp.io/noc/influxdb/influxdb-relay/config"
 )
 
 // HTTP is a relay for HTTP influxdb writes
@@ -40,6 +40,8 @@ type HTTP struct {
 	start  time.Time
 	log    bool
 	logger *log.Logger
+
+	healthTimeout time.Duration
 }
 
 type relayHandlerFunc func(h *HTTP, w http.ResponseWriter, r *http.Request, start time.Time)
@@ -116,6 +118,8 @@ func NewHTTP(cfg config.HTTPConfig, verbose bool) (Relay, error) {
 
 		h.backends = append(h.backends, backend)
 	}
+
+	h.healthTimeout = time.Duration(cfg.HealthTimeout) * time.Millisecond
 
 	return h, nil
 }
