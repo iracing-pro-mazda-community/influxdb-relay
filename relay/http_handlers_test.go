@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"git.vpgrp.io/noc/influxdb/influxdb-relay/config"
+	"github.com/vente-privee/influxdb-relay/config"
 )
 
 var (
