@@ -152,11 +152,6 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 	for _, b := range h.backends {
 		b := b
 
-		if b.admin == "" {
-			// Empty query, skip backend
-			wg.Done()
-			continue
-		}
 
 		go func() {
 			defer wg.Done()
