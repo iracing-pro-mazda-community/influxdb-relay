@@ -63,6 +63,7 @@ var (
 		"/ping":              (*HTTP).handlePing,
 		"/status":            (*HTTP).handleStatus,
 		"/admin":             (*HTTP).handleAdmin,
+		"/admin/flush":				(*HTTP).handleFlush,
 		"/health":            (*HTTP).handleHealth,
 	}
 
@@ -287,6 +288,14 @@ type httpBackend struct {
 	name      string
 	inputType config.Input
 	admin     string
+}
+
+func (h *httpBackend) getRetryBuffer() *retryBuffer	{
+	if p, ok := h.poster.(*retryBuffer); ok {
+		return p
+	}
+
+	return nil
 }
 
 func newHTTPBackend(cfg *config.HTTPOutputConfig) (*httpBackend, error) {

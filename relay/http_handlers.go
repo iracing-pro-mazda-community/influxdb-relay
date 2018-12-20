@@ -232,6 +232,28 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 	}
 }
 
+func (h *HTTP) handleFlush(w http.ResponseWriter, r *http.Request, start time.Time) {
+	if h.log {
+		h.logger.Println("Flushing buffers...")
+	}
+
+	for _, b := range h.backends {
+		r := b.getRetryBuffer()
+
+		if r != nil {
+			if h.log {
+				h.logger.Println("Flushing " + b.name)
+			} else {
+				h.logger.Println("NOT flushing " + b.name + " (is empty)")
+			}
+
+			r.empty()
+		}
+	}
+
+	jsonResponse(w, response{http.StatusOK, http.StatusText(http.StatusOK)})
+}
+
 func (h *HTTP) handleStandard(w http.ResponseWriter, r *http.Request, start time.Time) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
