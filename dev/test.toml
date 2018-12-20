@@ -2,6 +2,7 @@
 name = "test-config"
 bind-addr = "0.0.0.0:9096"
 output = [
-    { name="from_influx", location = "http://influxdb:8086/write", admin = "http://influxdb:8086" },
-    { name="from_prometheus", location = "http://influxdb:8086/api/v1/prom/write", type="prometheus", buffer-size-mb = 100, max-batch-kb = 1000, max-delay-interval = "5s" }
+    { name="from_influx_1", location = "http://influxdb:8086/write", admin = "http://influxdb:8086", buffer-size-mb = 100, max-batch-kb = 50, max-delay-interval = "1s" },
+    { name="from_influx_2", location = "http://influxdb:8086/write", admin = "http://influxdb:8086", buffer-size-mb = 100, max-batch-kb = 50, max-delay-interval = "1s" },
+    { name="from_influx_3", location = "http://influxdb:8086/write", admin = "http://influxdb:8086", buffer-size-mb = 100, max-batch-kb = 50, max-delay-interval = "1s" }
 ]
