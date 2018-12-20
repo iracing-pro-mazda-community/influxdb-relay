@@ -63,6 +63,7 @@ func main() {
 	// And it has to be loaded in order to continue
 	cfg, err := config.LoadConfigFile(*configFile)
 	if err != nil {
+		log.Println("Version: " + relayVersion)
 		log.Fatal(err.Error())
 	}
 
