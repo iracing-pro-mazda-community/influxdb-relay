@@ -20,7 +20,7 @@ func New(config config.Config) (*Service, error) {
 	s.relays = make(map[string]relay.Relay)
 
 	for _, cfg := range config.HTTPRelays {
-		h, err := relay.NewHTTP(cfg, config.Verbose)
+		h, err := relay.NewHTTP(cfg, config.Verbose, config.Filters)
 		if err != nil {
 			return nil, err
 		}

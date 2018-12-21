@@ -60,9 +60,9 @@ func (r *retryBuffer) getStats() map[string]string {
 	return stats
 }
 
-func (r *retryBuffer) post(buf []byte, query string, auth string) (*responseData, error) {
+func (r *retryBuffer) post(buf []byte, query string, auth string, endpoint string) (*responseData, error) {
 	if atomic.LoadInt32(&r.buffering) == 0 {
-		resp, err := r.p.post(buf, query, auth)
+		resp, err := r.p.post(buf, query, auth, endpoint)
 		// TODO: A 5xx caused by the point data could cause the relay to buffer forever
 		if err == nil && resp.StatusCode/100 != 5 {
 			return resp, err
@@ -72,12 +72,12 @@ func (r *retryBuffer) post(buf []byte, query string, auth string) (*responseData
 	}
 
 	// already buffering or failed request
-	_, err := r.list.add(buf, query, auth)
+	_, err := r.list.add(buf, query, auth, endpoint)
 
 	// batch.wg.Wait()
 	// We do not wait for the WaitGroup because we don't want
 	// to leave the connection open
-	//.The client will receive a 202 which closes the connection and
+	// The client will receive a 202 which closes the connection and
 	// invites him to send further requests
 	return &responseData{StatusCode: http.StatusAccepted}, err
 }
@@ -105,8 +105,8 @@ func (r *retryBuffer) run() {
 				break
 			}
 
-			resp, err := r.p.post(buf.Bytes(), batch.query, batch.auth)
-			if err == nil && resp.StatusCode/100 != 5 {
+      resp, err := r.p.post(buf.Bytes(), batch.query, batch.auth, batch.endpoint)
+      if err == nil && resp.StatusCode/100 != 5 {
 				batch.resp = resp
 				atomic.StoreInt32(&r.buffering, 0)
 				batch.wg.Done()
@@ -126,11 +126,12 @@ func (r *retryBuffer) run() {
 }
 
 type batch struct {
-	query string
-	auth  string
-	bufs  [][]byte
-	size  int
-	full  bool
+	query    string
+	auth     string
+	bufs     [][]byte
+	size     int
+	full     bool
+	endpoint string
 
 	wg   sync.WaitGroup
 	resp *responseData
@@ -138,12 +139,13 @@ type batch struct {
 	next *batch
 }
 
-func newBatch(buf []byte, query string, auth string) *batch {
+func newBatch(buf []byte, query string, auth string, endpoint string) *batch {
 	b := new(batch)
 	b.bufs = [][]byte{buf}
 	b.size = len(buf)
 	b.query = query
 	b.auth = auth
+	b.endpoint = endpoint
 	b.wg.Add(1)
 	return b
 }
@@ -195,7 +197,7 @@ func (l *bufferList) pop() *batch {
 	return b
 }
 
-func (l *bufferList) add(buf []byte, query string, auth string) (*batch, error) {
+func (l *bufferList) add(buf []byte, query string, auth string, endpoint string) (*batch, error) {
 	l.cond.L.Lock()
 
 	if l.size+len(buf) > l.maxSize {
@@ -227,7 +229,7 @@ func (l *bufferList) add(buf []byte, query string, auth string) (*batch, error) 
 
 	if *cur == nil {
 		// new tail element
-		*cur = newBatch(buf, query, auth)
+		*cur = newBatch(buf, query, auth, endpoint)
 	} else {
 		// append to current batch
 		b := *cur

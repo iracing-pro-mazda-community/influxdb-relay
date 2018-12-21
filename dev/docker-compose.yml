@@ -4,9 +4,16 @@ services:
   influxdb:
     image: influxdb
     ports:
-      - "8086:8086"
+      - "1234:8086"
     volumes:
       - /tmp/influxdbrelay-influx:/var/lib/influxdb
+
+  influxdb2:
+    image: influxdb
+    ports:
+      - "5678:8086"
+    volumes:
+      - /tmp/influxdbrelay-influx2:/var/lib/influxdb
 
   prometheus:
     image: prom/prometheus

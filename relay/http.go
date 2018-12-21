@@ -6,17 +6,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/time/rate"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/vente-privee/influxdb-relay/config"
 )
 
@@ -40,6 +43,10 @@ type HTTP struct {
 	start  time.Time
 	log    bool
 	logger *log.Logger
+
+	rateLimiter *rate.Limiter
+
+	healthTimeout time.Duration
 }
 
 type relayHandlerFunc func(h *HTTP, w http.ResponseWriter, r *http.Request, start time.Time)
@@ -71,13 +78,14 @@ var (
 		(*HTTP).bodyMiddleWare,
 		(*HTTP).queryMiddleWare,
 		(*HTTP).logMiddleWare,
+		(*HTTP).rateMiddleware,
 	}
 )
 
 // NewHTTP creates a new HTTP relay
 // This relay will most likely be tied to a RelayService
 // and manage a set of HTTPBackends
-func NewHTTP(cfg config.HTTPConfig, verbose bool) (Relay, error) {
+func NewHTTP(cfg config.HTTPConfig, verbose bool, fs config.Filters) (Relay, error) {
 	h := new(HTTP)
 
 	h.addr = cfg.Addr
@@ -110,13 +118,24 @@ func NewHTTP(cfg config.HTTPConfig, verbose bool) (Relay, error) {
 
 	// For each output specified in the config, we are going to create a backend
 	for i := range cfg.Outputs {
-		backend, err := newHTTPBackend(&cfg.Outputs[i])
+		backend, err := newHTTPBackend(&cfg.Outputs[i], fs)
 		if err != nil {
 			return nil, err
 		}
 
 		h.backends = append(h.backends, backend)
 	}
+
+	// If a RateLimit is specified, create a new limiter
+	if cfg.RateLimit != 0 {
+		if cfg.BurstLimit != 0 {
+			h.rateLimiter = rate.NewLimiter(rate.Limit(cfg.RateLimit), cfg.BurstLimit)
+		} else {
+			h.rateLimiter = rate.NewLimiter(rate.Limit(cfg.RateLimit), 1)
+		}
+	}
+
+	h.healthTimeout = time.Duration(cfg.HealthTimeout) * time.Millisecond
 
 	return h, nil
 }
@@ -154,7 +173,7 @@ func (h *HTTP) Run() error {
 
 	h.l = l
 
-	log.Printf("Starting %s relay %q on %v", strings.ToUpper(h.schema), h.Name(), h.addr)
+	h.logger.Printf("starting %s relay %q on %v", strings.ToUpper(h.schema), h.Name(), h.addr)
 
 	err = http.Serve(l, h)
 	if atomic.LoadInt64(&h.closing) != 0 {
@@ -172,7 +191,7 @@ func (h *HTTP) Stop() error {
 // ServeHTTP is the function that handles the different route
 // The response is a JSON object describing the state of the operation
 func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	//h.start = time.Now()
+	// h.start = time.Now()
 
 	if fun, ok := handlers[r.URL.Path]; ok {
 		allMiddlewares(h, fun)(h, w, r, time.Now())
@@ -218,7 +237,7 @@ func jsonResponse(w http.ResponseWriter, r response) {
 }
 
 type poster interface {
-	post([]byte, string, string) (*responseData, error)
+	post([]byte, string, string, string) (*responseData, error)
 	getStats() map[string]string
 }
 
@@ -251,8 +270,8 @@ func (s *simplePoster) getStats() map[string]string {
 	return v
 }
 
-func (s *simplePoster) post(buf []byte, query string, auth string) (*responseData, error) {
-	req, err := http.NewRequest("POST", s.location, bytes.NewReader(buf))
+func (s *simplePoster) post(buf []byte, query string, auth string, endpoint string) (*responseData, error) {
+	req, err := http.NewRequest("POST", s.location+endpoint, bytes.NewReader(buf))
 	if err != nil {
 		return nil, err
 	}
@@ -288,6 +307,40 @@ type httpBackend struct {
 	name      string
 	inputType config.Input
 	admin     string
+	endpoints config.HTTPEndpointConfig
+	location  string
+
+	tagRegexps         []*regexp.Regexp
+	measurementRegexps []*regexp.Regexp
+}
+
+// validateRegexps checks if a request on this backend matches
+// all the tag regular expressions for this backend
+func (b *httpBackend) validateRegexps(ps models.Points) error {
+  // For each point
+  for _, p := range ps {
+    // Check if the measurement of each point
+    // matches ALL measurement regular expressions
+    m := p.Name()
+    for _, r := range b.measurementRegexps {
+      if !r.Match(m) {
+        return errors.New("bad measurement")
+      }
+    }
+
+    // For each tag of each point
+    for _, t := range p.Tags() {
+      // Check if each tag of each point
+      // matches ALL tags regular expressions
+      for _, r := range b.tagRegexps {
+        if !r.Match(t.Key) {
+          return errors.New("bad tag")
+        }
+      }
+    }
+  }
+
+  return nil
 }
 
 func (h *httpBackend) getRetryBuffer() *retryBuffer	{
@@ -298,12 +351,13 @@ func (h *httpBackend) getRetryBuffer() *retryBuffer	{
 	return nil
 }
 
-func newHTTPBackend(cfg *config.HTTPOutputConfig) (*httpBackend, error) {
+func newHTTPBackend(cfg *config.HTTPOutputConfig, fs config.Filters) (*httpBackend, error) {
 	// Get default name
 	if cfg.Name == "" {
 		cfg.Name = cfg.Location
 	}
 
+	// Set a timeout
 	timeout := DefaultHTTPTimeout
 	if cfg.Timeout != "" {
 		t, err := time.ParseDuration(cfg.Timeout)
@@ -313,6 +367,7 @@ func newHTTPBackend(cfg *config.HTTPOutputConfig) (*httpBackend, error) {
 		timeout = t
 	}
 
+	// Get underlying Poster instance
 	var p poster = newSimplePoster(cfg.Location, timeout, cfg.SkipTLSVerification)
 
 	// If configured, create a retryBuffer per backend.
@@ -335,11 +390,31 @@ func newHTTPBackend(cfg *config.HTTPOutputConfig) (*httpBackend, error) {
 		p = newRetryBuffer(cfg.BufferSizeMB*MB, batch, max, p)
 	}
 
+	var tagRegexps []*regexp.Regexp
+	var measurementRegexps []*regexp.Regexp
+
+	// Get regexps related to this HTTP backend
+	for _, f := range fs {
+		for _, e := range f.Outputs {
+			if e == cfg.Name {
+				if f.TagRegexp != nil {
+					tagRegexps = append(tagRegexps, f.TagRegexp)
+				}
+
+				if f.MeasurementRegexp != nil {
+					measurementRegexps = append(measurementRegexps, f.MeasurementRegexp)
+				}
+			}
+		}
+	}
+
 	return &httpBackend{
-		poster:    p,
-		name:      cfg.Name,
-		inputType: cfg.InputType,
-		admin:     cfg.Admin,
+		poster:             p,
+		name:               cfg.Name,
+		tagRegexps:         tagRegexps,
+		measurementRegexps: measurementRegexps,
+		endpoints: cfg.Endpoints,
+		location:  cfg.Location,
 	}, nil
 }
 

@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	relayVersion = "2.3.0"
+	relayVersion = "3.0.0"
 )
 
 var (
@@ -40,7 +40,7 @@ func runRelay(cfg config.Config) {
 		relay.Stop()
 	}()
 
-	log.Println("Starting relays...")
+	log.Println("starting relays...")
 	relay.Run()
 }
 
@@ -63,6 +63,7 @@ func main() {
 	// And it has to be loaded in order to continue
 	cfg, err := config.LoadConfigFile(*configFile)
 	if err != nil {
+		log.Println("Version: " + relayVersion)
 		log.Fatal(err.Error())
 	}
 

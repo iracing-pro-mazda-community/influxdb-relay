@@ -132,7 +132,7 @@ func (u *UDP) Run() error {
 		}
 	}()
 
-	log.Printf("Starting UDP relay %q on %v", u.Name(), u.l.LocalAddr())
+	log.Printf("starting UDP relay %q on %v", u.Name(), u.l.LocalAddr())
 
 	for {
 		n, remote, err := u.l.ReadFromUDP(buf[:])
