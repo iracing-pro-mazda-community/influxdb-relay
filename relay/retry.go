@@ -23,6 +23,7 @@ type Operation func() error
 // There is no delay between attempts of different operations.
 type retryBuffer struct {
 	buffering int32
+	flushing int32
 
 	initialInterval time.Duration
 	multiplier      time.Duration
@@ -76,7 +77,7 @@ func (r *retryBuffer) post(buf []byte, query string, auth string, endpoint strin
 	// batch.wg.Wait()
 	// We do not wait for the WaitGroup because we don't want
 	// to leave the connection open
-	//.The client will receive a 202 which closes the connection and
+	// The client will receive a 202 which closes the connection and
 	// invites him to send further requests
 	return &responseData{StatusCode: http.StatusAccepted}, err
 }
@@ -93,8 +94,19 @@ func (r *retryBuffer) run() {
 
 		interval := r.initialInterval
 		for {
-			resp, err := r.p.post(buf.Bytes(), batch.query, batch.auth, batch.endpoint)
-			if err == nil && resp.StatusCode/100 != 5 {
+			if r.flushing == 1 {
+				atomic.StoreInt32(&r.buffering, 0)
+				batch.wg.Done()
+
+				if r.list.size == 0 {
+					atomic.StoreInt32(&r.flushing, 0)
+				}
+
+				break
+			}
+
+      resp, err := r.p.post(buf.Bytes(), batch.query, batch.auth, batch.endpoint)
+      if err == nil && resp.StatusCode/100 != 5 {
 				batch.resp = resp
 				atomic.StoreInt32(&r.buffering, 0)
 				batch.wg.Done()
@@ -159,6 +171,13 @@ func (l *bufferList) getStats() map[string]string {
 	stats["size"] = strconv.FormatInt(int64(l.size), 10)
 	stats["maxSize"] = strconv.FormatInt(int64(l.maxSize), 10)
 	return stats
+}
+
+// Empty the buffer to drop any buffered query
+// This allows to flush 'impossible' queries which loop infinitely
+// without having to restart the whole relay
+func (r *retryBuffer) empty() {
+	atomic.StoreInt32(&r.flushing, 1)
 }
 
 // pop will remove and return the first element of the list, blocking if necessary

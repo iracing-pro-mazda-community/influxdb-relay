@@ -70,6 +70,7 @@ var (
 		"/ping":              (*HTTP).handlePing,
 		"/status":            (*HTTP).handleStatus,
 		"/admin":             (*HTTP).handleAdmin,
+		"/admin/flush":				(*HTTP).handleFlush,
 		"/health":            (*HTTP).handleHealth,
 	}
 
@@ -316,27 +317,35 @@ type httpBackend struct {
 // validateRegexps checks if a request on this backend matches
 // all the tag regular expressions for this backend
 func (b *httpBackend) validateRegexps(ps models.Points) error {
-	// For each point
-	for _, p := range ps {
-		// Check if the measurement of each point
-		// matches ALL measurement regular expressions
-		m := p.Name()
-		for _, r := range b.measurementRegexps {
-			if !r.Match(m) {
-				return errors.New("bad measurement")
-			}
-		}
+  // For each point
+  for _, p := range ps {
+    // Check if the measurement of each point
+    // matches ALL measurement regular expressions
+    m := p.Name()
+    for _, r := range b.measurementRegexps {
+      if !r.Match(m) {
+        return errors.New("bad measurement")
+      }
+    }
 
-		// For each tag of each point
-		for _, t := range p.Tags() {
-			// Check if each tag of each point
-			// matches ALL tags regular expressions
-			for _, r := range b.tagRegexps {
-				if !r.Match(t.Key) {
-					return errors.New("bad tag")
-				}
-			}
-		}
+    // For each tag of each point
+    for _, t := range p.Tags() {
+      // Check if each tag of each point
+      // matches ALL tags regular expressions
+      for _, r := range b.tagRegexps {
+        if !r.Match(t.Key) {
+          return errors.New("bad tag")
+        }
+      }
+    }
+  }
+
+  return nil
+}
+
+func (b *httpBackend) getRetryBuffer() *retryBuffer	{
+	if p, ok := b.poster.(*retryBuffer); ok {
+		return p
 	}
 
 	return nil
