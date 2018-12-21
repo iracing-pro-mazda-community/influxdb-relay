@@ -343,8 +343,8 @@ func (b *httpBackend) validateRegexps(ps models.Points) error {
   return nil
 }
 
-func (h *httpBackend) getRetryBuffer() *retryBuffer	{
-	if p, ok := h.poster.(*retryBuffer); ok {
+func (b *httpBackend) getRetryBuffer() *retryBuffer	{
+	if p, ok := b.poster.(*retryBuffer); ok {
 		return p
 	}
 
