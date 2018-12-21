@@ -205,7 +205,7 @@ func LoadConfigFile(filename string) (Config, error) {
 				}
 			}
 		}
+		err = cfg.Filters.LoadRegexps()
 	}
-	err = cfg.Filters.LoadRegexps()
 	return cfg, err
 }
