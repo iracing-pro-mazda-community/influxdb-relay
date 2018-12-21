@@ -11,7 +11,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -91,9 +90,7 @@ func NewHTTP(cfg config.HTTPConfig, verbose bool, fs config.Filters) (Relay, err
 	h.addr = cfg.Addr
 	h.name = cfg.Name
 	h.log = verbose
-	if verbose {
-		h.logger = log.New(os.Stdout, "", 0)
-	}
+	h.logger = &log.Logger{}
 
 	h.pingResponseCode = DefaultHTTPPingResponse
 	if cfg.DefaultPingResponse != 0 {
