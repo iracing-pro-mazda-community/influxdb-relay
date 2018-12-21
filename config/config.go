@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"regexp"
 
@@ -201,7 +200,6 @@ func LoadConfigFile(filename string) (Config, error) {
 	if err == nil {
 		for i, r := range cfg.HTTPRelays {
 			for j, b := range r.Outputs {
-				fmt.Println("lastchar", b.Location[len(b.Location) - 1])
 				if b.Location[len(b.Location) - 1] == '/' {
 					cfg.HTTPRelays[i].Outputs[j].Endpoints = checkDoubleSlash(b.Endpoints)
 				}
@@ -209,6 +207,5 @@ func LoadConfigFile(filename string) (Config, error) {
 		}
 	}
 	err = cfg.Filters.LoadRegexps()
-	fmt.Printf("%+v\n", cfg)
 	return cfg, err
 }
