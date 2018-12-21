@@ -170,7 +170,9 @@ func (h *HTTP) Run() error {
 
 	h.l = l
 
-	h.logger.Printf("starting %s relay %q on %v", strings.ToUpper(h.schema), h.Name(), h.addr)
+        if h.log {
+          h.logger.Printf("starting %s relay %q on %v", strings.ToUpper(h.schema), h.Name(), h.addr)
+        }
 
 	err = http.Serve(l, h)
 	if atomic.LoadInt64(&h.closing) != 0 {
