@@ -18,7 +18,7 @@ func allMiddlewares(h *HTTP, handlerFunc relayHandlerFunc) relayHandlerFunc {
 func (h *HTTP) logMiddleWare(next relayHandlerFunc) relayHandlerFunc {
 	return relayHandlerFunc(func(h *HTTP, w http.ResponseWriter, r *http.Request, start time.Time) {
 		if h.log {
-			h.logger.Println("Got request on: " + r.URL.Path)
+			h.logger.Println("got request on: " + r.URL.Path)
 		}
 		next(h, w, r, start)
 	})
@@ -60,4 +60,15 @@ func (h *HTTP) queryMiddleWare(next relayHandlerFunc) relayHandlerFunc {
 		next(h, w, r, start)
 	})
 
+}
+
+func (h *HTTP) rateMiddleware(next relayHandlerFunc) relayHandlerFunc {
+	return relayHandlerFunc(func(h *HTTP, w http.ResponseWriter, r *http.Request, start time.Time) {
+		if h.rateLimiter != nil && !h.rateLimiter.Allow() {
+			jsonResponse(w, response{http.StatusTooManyRequests, http.StatusText(http.StatusTooManyRequests)})
+			return
+		}
+
+		next(h, w, r, start)
+	})
 }

@@ -87,6 +87,7 @@ You can find more documentation in [docs](docs) folder.
 * [Buffering](docs/buffering.md)
 * [Caveats](docs/caveats.md)
 * [Recovery](docs/recovery.md)
+* [Filters](docs/filters.md)
 * [Sharding](docs/sharding.md)
 
 You can find some configurations in [examples](examples) folder.
@@ -222,6 +223,11 @@ The status field is a summary of the general state of the backends, the defined 
 * `healthy`: no errors were encountered
 * `problem`: some backends, but no all of them, returned errors
 * `critical`: every backend returned an error
+
+### Filters
+
+We allow tags and measurements filtering through regular expressions. Please,
+take a look at [this document](docs/filters.md) for more information.
 
 ## Limitations
 

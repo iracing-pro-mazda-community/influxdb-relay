@@ -3,12 +3,13 @@ package relay
 import (
 	"bytes"
 	"compress/gzip"
-	"github.com/stretchr/testify/assert"
-	"github.com/vente-privee/influxdb-relay/config"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/vente-privee/influxdb-relay/config"
 	"time"
 )
 
@@ -131,7 +132,7 @@ func WriterTest(t *testing.T, expected *ResponseWriter, actual *ResponseWriter) 
 }
 
 func createHTTP(t *testing.T, cfg config.HTTPConfig, verbose bool) *HTTP {
-	tmp, err := NewHTTP(cfg, verbose)
+	tmp, err := NewHTTP(cfg, verbose, config.Filters{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ func TestLogMiddleware(t *testing.T) {
 	}
 	handler(h, w, r, ti)
 	buf, _ := ioutil.ReadAll(logger.buffer)
-	assert.Equal(t, string(buf), "Got request on: influxdb\n")
+	assert.Equal(t, string(buf), "got request on: influxdb\n")
 }
 
 func TestLogMiddlewareNoLog(t *testing.T) {

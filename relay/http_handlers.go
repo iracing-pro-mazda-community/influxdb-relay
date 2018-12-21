@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/vente-privee/influxdb-relay/config"
 )
 
 func (h *HTTP) handleStatus(w http.ResponseWriter, r *http.Request, _ time.Time) {
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		// old but gold
 		st := make(map[string]map[string]string)
 
 		for _, b := range h.backends {
@@ -61,17 +61,11 @@ var (
 func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time) {
 	var responses = make(chan health, len(h.backends))
 	var wg sync.WaitGroup
-	var client = http.Client{}
 	var validEndpoints = 0
 	wg.Add(len(h.backends))
 
 	for _, b := range h.backends {
 		b := b
-
-		if b.admin == "" {
-			wg.Done()
-			continue
-		}
 
 		validEndpoints++
 
@@ -80,23 +74,24 @@ func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time)
 
 			var healthCheck = health{name: b.name, err: nil}
 
-			req, err := http.NewRequest("GET", b.admin+"/ping", nil)
+			client := http.Client{
+				Timeout: h.healthTimeout,
+			}
+			start := time.Now()
+			res, err := client.Get(b.location + b.endpoints.Ping)
+
 			if err != nil {
-				healthCheck.err = errorCreateRequest
+				if h.log {
+					h.logger.Println(err)
+				}
+				healthCheck.err = err
 				responses <- healthCheck
 				return
 			}
-
-			start := time.Now()
-			res, err := client.Do(req)
-			if err != nil {
-				healthCheck.err = err
-			} else {
-				if res.StatusCode/100 != 2 {
-					healthCheck.err = errors.New("Unexpected error code " + string(res.StatusCode))
-				}
-				healthCheck.duration = time.Since(start)
+			if res.StatusCode/100 != 2 {
+				healthCheck.err = errors.New("Unexpected error code " + string(res.StatusCode))
 			}
+			healthCheck.duration = time.Since(start)
 			responses <- healthCheck
 			return
 		}()
@@ -158,19 +153,13 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 	for _, b := range h.backends {
 		b := b
 
-		if b.admin == "" {
-			// Empty query, skip backend
-			wg.Done()
-			continue
-		}
-
 		go func() {
 			defer wg.Done()
 
 			// Create new request
 			// Update location according to backend
 			// Forward body
-			req, err := http.NewRequest("POST", b.admin+"/query", r.Body)
+			req, err := http.NewRequest("POST", b.location+b.endpoints.Query, r.Body)
 			if err != nil {
 				log.Printf("Problem posting to relay %q backend %q: could not prepare request: %v", h.Name(), b.name, err)
 				responses <- &http.Response{}
@@ -206,12 +195,12 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 		close(responses)
 	}()
 
-	var errResponse *responseData
-	for resp := range responses {
-		switch resp.StatusCode / 100 {
-		case 2:
-			w.WriteHeader(http.StatusNoContent)
-			return
+		var errResponse *responseData
+		for resp := range responses {
+			switch resp.StatusCode / 100 {
+			case 2:
+				w.WriteHeader(http.StatusNoContent)
+				return
 
 		case 4:
 			// User error
@@ -280,14 +269,22 @@ func (h *HTTP) handleStandard(w http.ResponseWriter, r *http.Request, start time
 
 	for _, b := range h.backends {
 		b := b
-		if b.inputType != config.TypeInfluxdb {
+
+		// Don't do the request if the tags do not match the filters
+		err := b.validateRegexps(points)
+		if err != nil {
+			if h.log {
+				h.logger.Printf("request invalidated by regular expression for backend: %s", b.name)
+				h.logger.Printf(err.Error())
+			}
+
 			wg.Done()
 			continue
 		}
 
 		go func() {
 			defer wg.Done()
-			resp, err := b.post(outBytes, query, authHeader)
+			resp, err := b.post(outBytes, query, authHeader, b.endpoints.Write)
 			if err != nil {
 				log.Printf("Problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
 				if h.log {
@@ -321,8 +318,9 @@ func (h *HTTP) handleStandard(w http.ResponseWriter, r *http.Request, start time
 			// Status accepted means buffering,
 			if resp.StatusCode == http.StatusAccepted {
 				if h.log {
-					h.logger.Printf("Could not reach relay %q, buffering...", h.Name())
+					h.logger.Printf("could not reach relay %q, buffering...", h.Name())
 				}
+
 				w.WriteHeader(http.StatusAccepted)
 				return
 			}
@@ -374,16 +372,12 @@ func (h *HTTP) handleProm(w http.ResponseWriter, r *http.Request, _ time.Time) {
 
 	for _, b := range h.backends {
 		b := b
-		if b.inputType != config.TypePrometheus {
-			wg.Done()
-			continue
-		}
 
 		go func() {
 			defer wg.Done()
-			resp, err := b.post(outBytes, r.URL.RawQuery, authHeader)
+			resp, err := b.post(outBytes, r.URL.RawQuery, authHeader, b.endpoints.PromWrite)
 			if err != nil {
-				log.Printf("Problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
+				log.Printf("problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
 
 				responses <- &responseData{}
 			} else {
@@ -413,7 +407,7 @@ func (h *HTTP) handleProm(w http.ResponseWriter, r *http.Request, _ time.Time) {
 			// Status accepted means buffering,
 			if resp.StatusCode == http.StatusAccepted {
 				if h.log {
-					h.logger.Printf("Could not reach relay %q, buffering...", h.Name())
+					h.logger.Printf("could not reach relay %q, buffering...", h.Name())
 				}
 				w.WriteHeader(http.StatusAccepted)
 				return
