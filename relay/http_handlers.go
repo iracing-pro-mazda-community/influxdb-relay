@@ -1,9 +1,11 @@
 package relay
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -156,10 +158,15 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 		go func() {
 			defer wg.Done()
 
+			// Create temporary buffer containing the body so that we don't have an error with the body being closed before sending
+			// see https://github.com/vente-privee/influxdb-relay/issues/11
+			buffer := &bytes.Buffer{}
+
+			io.Copy(buffer, r.Body)
 			// Create new request
 			// Update location according to backend
 			// Forward body
-			req, err := http.NewRequest("POST", b.location+b.endpoints.Query, r.Body)
+			req, err := http.NewRequest("POST", b.location+b.endpoints.Query, buffer)
 			if err != nil {
 				log.Printf("Problem posting to relay %q backend %q: could not prepare request: %v", h.Name(), b.name, err)
 				responses <- &http.Response{}
