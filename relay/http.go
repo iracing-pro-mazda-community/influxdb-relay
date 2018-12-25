@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -90,7 +91,7 @@ func NewHTTP(cfg config.HTTPConfig, verbose bool, fs config.Filters) (Relay, err
 	h.addr = cfg.Addr
 	h.name = cfg.Name
 	h.log = verbose
-	h.logger = &log.Logger{}
+	h.logger = log.New(os.Stdout, "relay: ", 0)
 
 	h.pingResponseCode = DefaultHTTPPingResponse
 	if cfg.DefaultPingResponse != 0 {
@@ -170,9 +171,9 @@ func (h *HTTP) Run() error {
 
 	h.l = l
 
-        if h.log {
-          h.logger.Printf("starting %s relay %q on %v", strings.ToUpper(h.schema), h.Name(), h.addr)
-        }
+	if h.log {
+		h.logger.Printf("starting %s relay %q on %v", strings.ToUpper(h.schema), h.Name(), h.addr)
+	}
 
 	err = http.Serve(l, h)
 	if atomic.LoadInt64(&h.closing) != 0 {

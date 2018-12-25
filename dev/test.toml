@@ -12,7 +12,7 @@ endpoints = {write="/write", ping="/ping", query="/query"}
 
 [[http.output]]
 name="influxdb02"
-location="http://influxdb:8086/"
+location="http://influxdb2:8086/"
 endpoints = {write="/write", ping="/ping", query="/query"}
 buffer-size-mb=100
 max-batch-kb=1000

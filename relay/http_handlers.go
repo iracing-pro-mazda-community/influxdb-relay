@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -55,10 +54,6 @@ type healthReport struct {
 	Healthy map[string]string `json:"healthy,omitempty"`
 	Problem map[string]string `json:"problem,omitempty"`
 }
-
-var (
-	errorCreateRequest = errors.New("Unable to prepare request")
-)
 
 func (h *HTTP) handleHealth(w http.ResponseWriter, _ *http.Request, _ time.Time) {
 	var responses = make(chan health, len(h.backends))
@@ -138,12 +133,21 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 	// Client to perform the raw queries
 	client := http.Client{}
 
+	// Base body for all requests
+	baseBody := bytes.Buffer{}
+	_, err := baseBody.ReadFrom(r.Body)
+	if err != nil {
+		log.Printf("relay %q: could not read body: %v", h.Name(), err)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		// Bad method
 		w.Header().Set("Allow", http.MethodPost)
 		jsonResponse(w, response{http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed)})
 		return
 	}
+
 	// Responses
 	var responses = make(chan *http.Response, len(h.backends))
 
@@ -158,17 +162,14 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 		go func() {
 			defer wg.Done()
 
-			// Create temporary buffer containing the body so that we don't have an error with the body being closed before sending
-			// see https://github.com/vente-privee/influxdb-relay/issues/11
-			buffer := &bytes.Buffer{}
+			bodyBytes := baseBody
 
-			io.Copy(buffer, r.Body)
 			// Create new request
 			// Update location according to backend
 			// Forward body
-			req, err := http.NewRequest("POST", b.location+b.endpoints.Query, buffer)
+			req, err := http.NewRequest("POST", b.location+b.endpoints.Query, &bodyBytes)
 			if err != nil {
-				log.Printf("Problem posting to relay %q backend %q: could not prepare request: %v", h.Name(), b.name, err)
+				log.Printf("problem posting to relay %q backend %q: could not prepare request: %v", h.Name(), b.name, err)
 				responses <- &http.Response{}
 				return
 			}
@@ -180,7 +181,7 @@ func (h *HTTP) handleAdmin(w http.ResponseWriter, r *http.Request, _ time.Time) 
 			resp, err := client.Do(req)
 			if err != nil {
 				// Internal error
-				log.Printf("Problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
+				log.Printf("problem posting to relay %q backend %q: %v", h.Name(), b.name, err)
 
 				// So empty response
 				responses <- &http.Response{}
