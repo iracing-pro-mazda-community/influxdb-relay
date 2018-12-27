@@ -106,29 +106,59 @@ name = "example-http"
 # TCP address to bind to, for HTTP server.
 bind-addr = "127.0.0.1:9096"
 
+# Timeout for /health route
+health-timeout-ms = 10000
+
+# Request limiting (Applied to all backend)
+rate-limit = 5
+burst-limit = 10
+
 # Ping response code, default is 204
 default-ping-response = 200
 
 # Enable HTTPS requests.
 ssl-combined-pem = "/path/to/influxdb-relay.pem"
 
-# Array of InfluxDB instances to use as backends for Relay.
-output = [
-    # name: name of the backend, used for display purposes only.
-    # location: full URL of the /write endpoint of the backend
-    # admin: Partial URL of the backend, without any path
-    # timeout: Go-parseable time duration. Fail writes if incomplete in this time.
-    # skip-tls-verification: skip verification for HTTPS location. WARNING: it's insecure. Don't use in production.
-    # type: type of input source. OPTIONAL: see below for more information.
+# InfluxDB instances to use as backend for Relay
+[[http.output]]
+# name: name of the backend, used for display purposes only.
+name="local-influxdb01"
 
-    # InfluxDB
-    { name="local-influxdb01", location="http://127.0.0.1:8086/write", timeout="10s", type="influxdb" },
-    { name="local-influxdb02", location="http://127.0.0.1:7086/write", timeout="10s", type="influxdb" },
+# location: full URL of the /write endpoint of the backend
+location="http://127.0.0.1:8086/"
 
-    # Prometheus
-    { name="local-influxdb03", location="http://127.0.0.1:6086/api/v1/prom/write", timeout="10s", type="prometheus" },
-    { name="local-influxdb05", location="http://127.0.0.1:5086/api/v1/prom/write", timeout="10s", type="prometheus" },
-]
+# endpoints: Routes to use on Relay
+# write: Route for standard InfluxDB request
+# write_prom: Route for Prometheus request
+# ping: Route for ping request
+# query: Route fot querying InfluxDB backends
+endpoints = {write="/write", write_prom="/api/v1/prom/write", ping="/ping", query="/query"}
+
+# timeout: Go-parseable time duration. Fail writes if incomplete in this time.
+timeout="10s"
+
+# skip-tls-verification: skip verification for HTTPS location. WARNING: it's insecure. Don't use in production.
+skip-tls-verification = false
+
+# InfluxDB
+[[http.output]]
+name="local-influxdb02"
+location="http://127.0.0.1:7086/"
+endpoints = {write="/write", ping="/ping", query="/query"}
+timeout="10s"
+
+# Prometheus
+[[http.output]]
+name="local-influxdb03"
+location="http://127.0.0.1:6086/"
+endpoints = {write="/write", write_prom="/api/v1/prom/write", ping="/ping", query="/query"}
+timeout="10s"
+
+[[http.output]]
+name="local-influxdb05"
+location="http://127.0.0.1:5086/"
+endpoints = {write="/write", write_prom="/api/v1/prom/write", ping="/ping", query="/query"}
+timeout="10s"
 
 [[udp]]
 # Name of the UDP server, used for display purposes only.
@@ -143,14 +173,21 @@ read-buffer = 0 # default
 # Precision to use for timestamps
 precision = "n" # Can be n, u, ms, s, m, h
 
-# Array of InfluxDB instances to use as backends for Relay.
-output = [
-    # name: name of the backend, used for display purposes only.
-    # location: host and port of backend.
-    # mtu: maximum output payload size
-    { name="local1", location="127.0.0.1:8089", mtu=512 },
-    { name="local2", location="127.0.0.1:7089", mtu=1024 },
-]
+# InfluxDB instance to use as backend for Relay.
+[[udp.output]]
+# name: name of the backend, used for display purposes only.
+name="local1"
+
+# location: host and port of backend.
+location="127.0.0.1:8089"
+
+# mtu: maximum output payload size
+mtu=512
+
+[[udp.output]]
+name="local2"
+location="127.0.0.1:7089"
+mtu=1024
 ```
 
 InfluxDB Relay is able to forward from a variety of input sources, including:
@@ -170,25 +207,6 @@ InfluxDB Relay does not send back a response body to the client(s), we are not
 able to forward all of the features this endpoint provides. Still, we decided
 to expose it through the `/admin` route.
 
-In order to use it, one shall define the optional `admin` parameter of the
-target backend(s) in the configuration file, as follows:
-
-```toml
-[[http]]
-# Name of the HTTP server, used for display purposes only.
-name = "expose-database-creation"
-
-# TCP address to bind to, for HTTP server.
-bind-addr = "127.0.0.1:9096"
-
-# Array of InfluxDB instances to use as backends for Relay.
-output = [
-    # InfluxDB
-    { name="local-influxdb01", location="http://127.0.0.1:8086/write", admin="http://127.0.0.1:8086", type="influxdb" },
-    { name="local-influxdb02", location="http://127.0.0.1:7086/write", admin="http://127.0.0.1:7086", type="influxdb" },
-]
-```
-
 It is now possible to query the `/admin` endpoint. Its usage is the same as the
 standard `/query` Influx DB enpoint:
 
@@ -201,7 +219,7 @@ bodies will not be forwarded back to the clients.
 
 #### /health endpoint
 
-This endpoint uses the same configuration as the `/admin` endpoint, and provides a quick way to check the state of all the backends.
+This endpoint provides a quick way to check the state of all the backends.
 It will return a JSON object detailing the status of the backends like this : 
 
 ```json
