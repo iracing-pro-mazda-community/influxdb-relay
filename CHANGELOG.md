@@ -29,6 +29,13 @@ Nov 15 2018 Maxime CORBIN <mcorbin@vente-privee.com>
     * Add `-version` option
     
 Dec 13 2018 Maxime CORBIN <mcorbin@vente-privee.com>
-    * Added `/admin` endpoint that can be used to create or remove databases
-    * Added `/health` endpoint that can be used to monitor the health status of every backend
+    * Add `/admin` endpoint that can be used to create or remove databases
+    * Add `/health` endpoint that can be used to monitor the health status of every backend
     * Fixed some performance bugs & added a few more logs
+    
+Dec 27 2018 Clément CORNUT <ccornut@vente-privee.com>
+    * Add `/admin/flush` endpoint that can be used to flush internal buffer
+    * Add Rate limiting on backend
+    * Add Filters for tags and measurements
+    * New configuration formatting
+    * Various bug fixes
