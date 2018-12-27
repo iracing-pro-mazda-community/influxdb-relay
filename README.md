@@ -107,6 +107,7 @@ name = "example-http"
 bind-addr = "127.0.0.1:9096"
 
 # Timeout for /health route
+# After this time, the host may be considered down
 health-timeout-ms = 10000
 
 # Request limiting (Applied to all backend)
@@ -195,8 +196,6 @@ InfluxDB Relay is able to forward from a variety of input sources, including:
 * `influxdb`
 * `prometheus`
 
-The `type` parameter in the configuration file defaults to `influxdb`.
-
 ### Administrative tasks
 
 #### /admin endpoint
@@ -250,8 +249,6 @@ take a look at [this document](docs/filters.md) for more information.
 ## Limitations
 
 So far, this is compatible with Debian, RedHat, and other derivatives.
-
-Moreover, the `type` parameter is not supported when it comes to UDP forwarding.
 
 ## Development
 
